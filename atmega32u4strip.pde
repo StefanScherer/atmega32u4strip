@@ -6,11 +6,11 @@
  Hardware requiremetns:
  - Adafruit Atmega32u4 breakout board
  - Adafruit Electret Microphone Amplifier (ID: 1063)
-   connected to pin B4 (analog ADC11)
+   connected to pin F0 (Analog input ADC0)
  - Adafruit NeoPixel Digitial LED strip or anything like that
-   connectet to pin B5 (OC1A)
+   connectet to pin D6 (T1/!OC4D/ADC9)
  - an IR receiver (TSOP 4838)
-   connected to pin B6 (OC1B)
+   connected to pin D1 (SDA/INT1)
 
  Written by Stefan Scherer under the BSD license.
  This parapgraph must be included in any redistribution.
@@ -98,7 +98,7 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_PIXELS, STRIP_PIN, NEO_GRB + NEO_K
 
 // Microphone settings and variables
 
-#define MIC_PIN    0  // Microphone is attached to this analog pin (T0/OC4D/ADC10/D7)
+#define MIC_PIN    0  // Microphone is attached to this analog pin (ADC0/F0)
 #define DC_OFFSET  0  // DC offset in mic signal - if unusure, leave 0
 #define NOISE     30  // Noise/hum/interference in mic signal
 #define SAMPLES   60  // Length of buffer for dynamic level adjustment
@@ -559,6 +559,33 @@ void colorStripsCycle() {
     show();
   }
 }
+
+/*
+ VU meter
+ Derived from http://learn.adafruit.com/trinket-sound-reactive-led-color-organ/code
+ 
+ LED "Color Organ" for Adafruit Trinket and NeoPixel LEDs.
+ 
+Hardware requirements:
+- Adafruit Trinket or Gemma mini microcontroller (ATTiny85).
+- Adafruit Electret Microphone Amplifier (ID: 1063)
+- Several Neopixels, you can mix and match
+o Adafruit Flora RGB Smart Pixels (ID: 1260)
+o Adafruit NeoPixel Digital LED strip (ID: 1138)
+o Adafruit Neopixel Ring (ID: 1463)
+ 
+Software requirements:
+- Adafruit NeoPixel library
+ 
+Connections:
+- 5 V to mic amp +
+- GND to mic amp -
+- Analog pinto microphone output (configurable below)
+- Digital pin to LED data input (configurable below)
+ 
+Written by Adafruit Industries. Distributed under the BSD license.
+This paragraph must be included in any redistribution.
+*/
 
 void vumeter()
 {
