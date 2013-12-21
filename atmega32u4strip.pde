@@ -134,15 +134,16 @@ enum
   MODE_DOT_UP,
   MODE_DOT_DOWN,
   MODE_DOT_ZIGZAG,
+  MODE_COLOR_STRIPS,
   MODE_MAX
 } MODE;
 
 
 int mode = MODE_WIPE_RED;
 int powerSaveMode = MODE_WIPE_RED;
-byte reverse = 0;
+bool reverse = false;
 
-int BRIGHTNESS_MAX = 30;
+int BRIGHTNESS_MAX = 80;
 int brightness = 20;
 
 // cycle variables
@@ -196,10 +197,12 @@ void loop()
           
         case KEY_RIGHT:
           n = 1;
+          paused = false;
           break;
         
         case KEY_LEFT:
           n = -1;
+          paused = false;
           break;
         
         case KEY_UP:
@@ -230,6 +233,10 @@ void loop()
           if (brightness < 0) brightness = 0;
           strip.setBrightness(brightness);
           n = 0; // re-render
+          break;
+          
+        case KEY_ROTATE:
+          reverse = !(reverse);
           break;
       }
 
@@ -293,6 +300,12 @@ void loop()
     case MODE_WIPE_MAGENTA:
       colorWipe(255, 0, 255);
       break;
+      
+    case MODE_COLOR_STRIPS:
+      colorStripsCycle();
+      break;
+
+      
   }  
 }
 
@@ -396,7 +409,7 @@ byte runningDotZigZag()
     runningDotDown();
     if (prevpeak != peak && peak == LAST_PIXEL_OFFSET)
     {
-      reverse = 0;
+      reverse = false;
       peak = prevpeak;
     }
   }
@@ -405,7 +418,7 @@ byte runningDotZigZag()
     runningDotUp();
     if (prevpeak != peak && !peak)
     {
-      reverse = 1;
+      reverse = true;
       peak = prevpeak;
     }
   }
@@ -434,6 +447,12 @@ void colorWipe(uint8_t r, uint8_t g, uint8_t b)
 {
   if (cycle())
   {
+    int pixel = peak;
+    if (reverse)
+    {
+      pixel = LAST_PIXEL_OFFSET - peak;
+    }
+    
     strip.setPixelColor(peak, r, g, b);
 
     if (peak <= LAST_PIXEL_OFFSET)
@@ -461,7 +480,12 @@ void rainbow()
     
     for(i=0; i<strip.numPixels(); i++)
     {
-      strip.setPixelColor(i, Wheel((i+lvl) & 255));
+      int pixel = i;
+      if (reverse)
+      {
+        pixel = LAST_PIXEL_OFFSET - i;
+      }
+      strip.setPixelColor(pixel, Wheel((i+lvl) & 255));
     }
     show();
   }
@@ -484,12 +508,43 @@ void rainbowCycle() {
     
     for(i=0; i< strip.numPixels(); i++)
     {
-      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + lvl) & 255));
+      int pixel = i;
+      if (reverse)
+      {
+        pixel = LAST_PIXEL_OFFSET - i;
+      }      
+      strip.setPixelColor(pixel, Wheel(((i * 256 / strip.numPixels()) + lvl) & 255));
     }
     show();
   }
 }
 
+void colorStripsCycle() {
+  uint16_t i;
+
+  if (cycle())
+  {
+    if (lvl >= 120)
+    {
+      lvl = 0;
+    }
+    else
+    {
+      lvl++;
+    }
+    
+    for(i=0; i< strip.numPixels(); i++)
+    {
+      int pixel = i;
+      if (reverse)
+      {
+        pixel = LAST_PIXEL_OFFSET - i;
+      }
+      strip.setPixelColor(pixel, ColorStrips(i+lvl));
+    }
+    show();
+  }
+}
 
 void vumeter()
 {
@@ -598,6 +653,34 @@ uint32_t Wheel(byte WheelPos) {
   } else {
    WheelPos -= 170;
    return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+}
+
+
+// Input a value 0 to 119 to get a color value.
+uint32_t ColorStrips(int WheelPos)
+{
+  int offset = WheelPos % 20;
+  int col = (WheelPos % 120) / 20;
+  
+  int light = 255-(offset*16);
+  if (light < 0) light = 0;
+  
+  switch (col)
+  {
+    case 0:
+    default:
+      return strip.Color(light,0,0);
+    case 1:
+      return strip.Color(0,light,0);
+    case 2:
+      return strip.Color(light,0,light);
+    case 3:
+      return strip.Color(0,light,light);
+    case 4:
+      return strip.Color(light,light,0);
+    case 5:
+      return strip.Color(0,0,light);
   }
 }
 
