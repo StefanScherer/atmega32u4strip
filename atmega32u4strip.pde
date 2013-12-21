@@ -71,7 +71,7 @@ Transcend Remote Control
 
 // IR receiver settings and variables
 
-int RECV_PIN = CORE_OC1B_PIN;
+int RECV_PIN = CORE_INT1_PIN;  // IR receiver TSOP4838 is connected to this pin (SDA/INT1/D1)
 
 IRrecv irrecv(RECV_PIN);
 decode_results results;
@@ -79,7 +79,7 @@ decode_results results;
 
 // NeoPixel settings and variables
 
-#define STRIP_PIN  CORE_OC1A_PIN  // NeoPixel LED strand is connected to this pin
+#define STRIP_PIN  CORE_T1_PIN  // NeoPixel LED strand is connected to this pin (T1/!OC4D/ADC9/D6)
 
 #define N_PIXELS   120  // Number of pixels in strand
 
@@ -98,9 +98,9 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_PIXELS, STRIP_PIN, NEO_GRB + NEO_K
 
 // Microphone settings and variables
 
-#define MIC_PIN    11  // Microphone is attached to this analog pin ADC11 / B4
+#define MIC_PIN    0  // Microphone is attached to this analog pin (T0/OC4D/ADC10/D7)
 #define DC_OFFSET  0  // DC offset in mic signal - if unusure, leave 0
-#define NOISE    100  // Noise/hum/interference in mic signal
+#define NOISE     30  // Noise/hum/interference in mic signal
 #define SAMPLES   60  // Length of buffer for dynamic level adjustment
 #define TOP       (N_PIXELS + 1) // Allow dot to go slightly off scale
 #define PEAK_FALL_MILLIS 10  // Rate of peak falling dot
@@ -207,13 +207,27 @@ void loop()
         
         case KEY_UP:
           // speed up
-          cycleMillis = cycleMillis / 2;
+          if (cycleMillis < 12)
+          {
+            cycleMillis--;
+          }
+          else
+          {
+            cycleMillis = cycleMillis / 1.25;
+          }
           if (cycleMillis <CYCLE_MIN_MILLIS) cycleMillis = CYCLE_MIN_MILLIS;
           break;
           
         case KEY_DOWN:
           // slow down
-          cycleMillis = cycleMillis * 2;
+          if (cycleMillis < 12)
+          {
+            cycleMillis++;
+          }
+          else
+          {
+            cycleMillis = cycleMillis * 1.25;
+          }
           if (cycleMillis >CYCLE_MAX_MILLIS) cycleMillis = CYCLE_MAX_MILLIS;
           break;
           
@@ -563,6 +577,7 @@ void vumeter()
   if(height < 0L)       height = 0;      // Clip output
   else if(height > TOP) height = TOP;
   if(height > peak)     peak   = height; // Keep 'peak' dot at top
+
 
 #ifdef CENTERED
  // Color pixels based on rainbow gradient
