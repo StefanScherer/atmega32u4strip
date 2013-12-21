@@ -141,8 +141,7 @@ enum
 int mode = MODE_WIPE_RED;
 byte reverse = 0;
 byte dotRunMillis = 20;
-
-
+long lastTime = 0;
 
 
 void setup()
@@ -151,12 +150,419 @@ void setup()
   irrecv.enableIRIn(); // Start the receiver
   
   strip.begin();
-  strip.setBrightness(30);
-  strip.show(); // Initialize all pixels to 'off'
+  strip.setBrightness(20);
+  show(); // Initialize all pixels to 'off'
  
   // clear vumeter
   memset(vol, 0, sizeof(vol)); 
+  
+  Serial.println("Setup done");
 }
+
+
+void loop() {
+  if (irrecv.decode(&results)) {
+    if (results.bits) {
+      Serial.println(results.value, HEX);
+//      dump(&results);
+
+      int n = -120;
+      switch (results.value)
+      {
+        case KEY_POWER:
+          n = 0;
+          if (mode)
+            mode = MODE_OFF;
+          else
+            mode = MODE_WIPE_RED;
+        break;
+          
+        case KEY_RIGHT:
+          n = 1;
+          break;
+        
+        case KEY_LEFT:
+          n = -1;
+          break;
+        
+        case KEY_UP:
+          // speed up
+          if (dotRunMillis >2) dotRunMillis--;
+          break;
+          
+        case KEY_DOWN:
+          // slow down
+          if (dotRunMillis < 127) dotRunMillis++;
+          break;
+      }
+
+      if (n != -120)
+      {
+        switchMode(n);
+      }
+
+    }
+    irrecv.resume(); // Receive the next value
+  }
+  
+  switch (mode) {
+    case MODE_OFF:
+      off();
+      break;
+
+    case MODE_VUMETER:
+      vumeter();
+      break;
+
+    case MODE_DOT_UP:
+      runningDotUp();
+      break;
+
+    case MODE_DOT_DOWN:
+      runningDotDown();
+      break;
+
+    case MODE_DOT_ZIGZAG:
+      runningDotZigZag();
+      break;
+
+    case MODE_RAINBOW:
+      rainbow();
+      break;
+
+    case MODE_RAINBOW_CYCLE:
+      rainbowCycle();
+      break;
+
+    case MODE_WIPE_RED:
+      colorWipe(255, 0, 0);
+      break;
+
+    case MODE_WIPE_GREEN:
+      colorWipe(0, 255, 0);
+      break;
+
+    case MODE_WIPE_BLUE:
+      colorWipe(0, 0, 255);
+      break;
+
+    case MODE_WIPE_YELLOW:
+      colorWipe(255, 255, 0);
+      break;
+
+    case MODE_WIPE_CYAN:
+      colorWipe(0, 255, 255);
+      break;
+
+    case MODE_WIPE_MAGENTA:
+      colorWipe(255, 0, 255);
+      break;
+  }  
+}
+
+
+void show()
+{
+  while (!irrecv.isIdle())
+  {
+     delay(1);
+//     Serial.println("show() called, but irrecv is not idle!");
+  }
+  
+  strip.show();
+//  irrecv.resume(); // Throw away values in the meantime because interrupts were stopped
+}
+
+void off()
+{
+  if (peak != N_PIXELS) // only once
+  {
+    peak = N_PIXELS; // move outside
+    drawDot();
+  }
+}
+
+
+void switchMode(int steprate)
+{
+  peak = 0;
+  lvl = 10;
+  mode += steprate;
+  if (mode >= MODE_MAX)
+  {
+    mode = 1;
+  }
+  else if (mode < 0)
+  {
+    mode = MODE_MAX-1;
+  }
+  Serial.println("switchMode to ");
+  Serial.print(mode, DEC);
+  Serial.println("");
+  
+
+}
+
+
+void runningDotUp()
+{
+  if (millis() - lastTime >= dotRunMillis)
+  {
+    lastTime = millis();
+
+    drawDot();
+ 
+    if (peak>=LAST_PIXEL_OFFSET)
+    {
+      peak = 0;
+    }
+    else
+    {
+      peak++;
+    }
+  }
+}
+
+void runningDotDown()
+{
+  if (millis() - lastTime >= dotRunMillis)
+  {
+    lastTime = millis();
+
+    drawDot();
+ 
+    if (peak <= 0)
+    {
+      peak = LAST_PIXEL_OFFSET;
+    }
+    else
+    {
+      peak--;
+    }
+  }
+}
+
+byte runningDotZigZag()
+{
+  byte prevpeak = peak;
+  if (reverse)
+  {
+    runningDotDown();
+    if (prevpeak != peak && peak == LAST_PIXEL_OFFSET)
+    {
+      reverse = 0;
+      peak = prevpeak;
+    }
+  }
+  else
+  {
+    runningDotUp();
+    if (prevpeak != peak && !peak)
+    {
+      reverse = 1;
+      peak = prevpeak;
+    }
+  }
+}
+
+
+
+void drawDot()
+{
+  for (int i=0; i<N_PIXELS;i++)
+  {
+    if (i != peak)
+    {
+      strip.setPixelColor(i, 0,0,0);
+    }
+    else
+    {
+      strip.setPixelColor(i, 255,255,255);
+    }
+  }
+  show();
+}
+
+// Fill the dots one after the other with a color
+void colorWipe(uint8_t r, uint8_t g, uint8_t b)
+{
+  if (millis() - lastTime >= dotRunMillis)
+  {
+    lastTime = millis();
+
+    strip.setPixelColor(peak, r, g, b);
+
+    if (peak <= LAST_PIXEL_OFFSET)
+    {
+      show();
+      peak++;
+    }
+  }
+}
+
+void rainbow()
+{
+  uint16_t i;
+
+  if (millis() - lastTime >= dotRunMillis)
+  {
+    lastTime = millis();
+
+    if (lvl >= 256)
+    {
+      lvl = 0;
+    }
+    else
+    {
+      lvl++;
+    }
+    
+    for(i=0; i<strip.numPixels(); i++)
+    {
+      strip.setPixelColor(i, Wheel((i+lvl) & 255));
+    }
+    show();
+  }
+}
+
+// Slightly different, this makes the rainbow equally distributed throughout
+void rainbowCycle() {
+  uint16_t i;
+
+  if (millis() - lastTime >= dotRunMillis)
+  {
+    lastTime = millis();
+
+    if (lvl >= 5*256) // 5 cycles of all colors on wheel
+    {
+      lvl = 0;
+    }
+    else
+    {
+      lvl++;
+    }
+    
+    for(i=0; i< strip.numPixels(); i++)
+    {
+      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + lvl) & 255));
+    }
+    show();
+  }
+}
+
+
+void vumeter()
+{
+  uint8_t  i;
+  uint16_t minLvl, maxLvl;
+  int      n, height;
+
+  n   = analogRead(MIC_PIN);                        // Raw reading from mic 
+  n   = abs(n - 512 - DC_OFFSET); // Center on zero
+  n   = (n <= NOISE) ? 0 : (n - NOISE);             // Remove noise/hum
+  lvl = ((lvl * 7) + n) >> 3;    // "Dampened" reading (else looks twitchy)
+
+  // Calculate bar height based on dynamic min/max levels (fixed point):
+  height = TOP * (lvl - minLvlAvg) / (long)(maxLvlAvg - minLvlAvg);
+
+  if(height < 0L)       height = 0;      // Clip output
+  else if(height > TOP) height = TOP;
+  if(height > peak)     peak   = height; // Keep 'peak' dot at top
+
+#ifdef CENTERED
+ // Color pixels based on rainbow gradient
+  for(i=0; i<(N_PIXELS/2); i++) {
+    if(((N_PIXELS/2)+i) >= height)
+    {
+      strip.setPixelColor(((N_PIXELS/2) + i),   0,   0, 0);
+      strip.setPixelColor(((N_PIXELS/2) - i),   0,   0, 0);
+    }
+    else
+    {
+      strip.setPixelColor(((N_PIXELS/2) + i),Wheel(map(((N_PIXELS/2) + i),0,strip.numPixels()-1,30,150)));
+      strip.setPixelColor(((N_PIXELS/2) - i),Wheel(map(((N_PIXELS/2) - i),0,strip.numPixels()-1,30,150)));
+    }
+  }
+  
+  // Draw peak dot  
+  if(peak > 0 && peak <= LAST_PIXEL_OFFSET)
+  {
+    strip.setPixelColor(((N_PIXELS/2) + peak),255,255,255); // (peak,Wheel(map(peak,0,strip.numPixels()-1,30,150)));
+    strip.setPixelColor(((N_PIXELS/2) - peak),255,255,255); // (peak,Wheel(map(peak,0,strip.numPixels()-1,30,150)));
+  }
+#else
+  // Color pixels based on rainbow gradient
+  for(i=0; i<N_PIXELS; i++)
+  {
+    if(i >= height)
+    {
+      strip.setPixelColor(i,   0,   0, 0);
+    }
+    else
+    {
+      strip.setPixelColor(i,Wheel(map(i,0,strip.numPixels()-1,30,150)));
+    }
+  }
+
+  // Draw peak dot  
+  if(peak > 0 && peak <= LAST_PIXEL_OFFSET)
+  {
+    strip.setPixelColor(peak,255,255,255); // (peak,Wheel(map(peak,0,strip.numPixels()-1,30,150)));
+  }
+  
+#endif  
+
+  // Every few frames, make the peak pixel drop by 1:
+
+  if (millis() - lastTime >= PEAK_FALL_MILLIS)
+  {
+    lastTime = millis();
+
+    show(); // Update strip
+
+    //fall rate 
+    if(peak > 0) peak--;
+    }
+
+  vol[volCount] = n;                      // Save sample for dynamic leveling
+  if(++volCount >= SAMPLES) volCount = 0; // Advance/rollover sample counter
+
+  // Get volume range of prior frames
+  minLvl = maxLvl = vol[0];
+  for(i=1; i<SAMPLES; i++)
+  {
+    if(vol[i] < minLvl)      minLvl = vol[i];
+    else if(vol[i] > maxLvl) maxLvl = vol[i];
+  }
+  // minLvl and maxLvl indicate the volume range over prior frames, used
+  // for vertically scaling the output graph (so it looks interesting
+  // regardless of volume level).  If they're too close together though
+  // (e.g. at very low volume levels) the graph becomes super coarse
+  // and 'jumpy'...so keep some minimum distance between them (this
+  // also lets the graph go to zero when no sound is playing):
+  if((maxLvl - minLvl) < TOP) maxLvl = minLvl + TOP;
+  minLvlAvg = (minLvlAvg * 63 + minLvl) >> 6; // Dampen min/max levels
+  maxLvlAvg = (maxLvlAvg * 63 + maxLvl) >> 6; // (fake rolling average)
+}
+
+
+
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos) {
+  if(WheelPos < 85) {
+   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } else if(WheelPos < 170) {
+   WheelPos -= 85;
+   return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } else {
+   WheelPos -= 170;
+   return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+}
+
+
+
 
 // Dumps out the decode_results structure.
 // Call this after IRrecv::decode()
@@ -210,13 +616,3 @@ void dump(decode_results *results) {
   Serial.println("");
 }
 
-
-void loop() {
-  if (irrecv.decode(&results)) {
-    if (results.bits) {
-      Serial.println(results.value, HEX);
-//      dump(&results);
-    }
-    irrecv.resume(); // Receive the next value
-  }
-}
