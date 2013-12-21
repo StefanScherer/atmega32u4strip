@@ -1,7 +1,7 @@
 /*
  atmega32u4strip
  
- Have some fun with an Adafruit Atmega32u4 breakout board and NeoPixel LED strip.
+ Have some fun with an Adafruit Atmega32u4 breakout board and 2 meters NeoPixel LED strip.
 
  Hardware requiremetns:
  - Adafruit Atmega32u4 breakout board
@@ -139,8 +139,17 @@ enum
 
 
 int mode = MODE_WIPE_RED;
+int powerSaveMode = MODE_WIPE_RED;
 byte reverse = 0;
-byte dotRunMillis = 20;
+
+int BRIGHTNESS_MAX = 30;
+int brightness = 20;
+
+// cycle variables
+int CYCLE_MIN_MILLIS = 2;
+int CYCLE_MAX_MILLIS = 1000;
+int cycleMillis = 20;
+bool paused = false;
 long lastTime = 0;
 
 
@@ -150,7 +159,7 @@ void setup()
   irrecv.enableIRIn(); // Start the receiver
   
   strip.begin();
-  strip.setBrightness(20);
+  strip.setBrightness(brightness);
   show(); // Initialize all pixels to 'off'
  
   // clear vumeter
@@ -160,9 +169,12 @@ void setup()
 }
 
 
-void loop() {
-  if (irrecv.decode(&results)) {
-    if (results.bits) {
+void loop()
+{
+  if (irrecv.decode(&results))
+  {
+    if (results.bits)
+    {
       Serial.println(results.value, HEX);
 //      dump(&results);
 
@@ -172,9 +184,14 @@ void loop() {
         case KEY_POWER:
           n = 0;
           if (mode)
+          {
+            powerSaveMode = mode; // save current mode
             mode = MODE_OFF;
+          }
           else
-            mode = MODE_WIPE_RED;
+          {
+            mode = powerSaveMode; // restore saved mode
+          }
         break;
           
         case KEY_RIGHT:
@@ -187,12 +204,32 @@ void loop() {
         
         case KEY_UP:
           // speed up
-          if (dotRunMillis >2) dotRunMillis--;
+          cycleMillis = cycleMillis / 2;
+          if (cycleMillis <CYCLE_MIN_MILLIS) cycleMillis = CYCLE_MIN_MILLIS;
           break;
           
         case KEY_DOWN:
           // slow down
-          if (dotRunMillis < 127) dotRunMillis++;
+          cycleMillis = cycleMillis * 2;
+          if (cycleMillis >CYCLE_MAX_MILLIS) cycleMillis = CYCLE_MAX_MILLIS;
+          break;
+          
+        case KEY_PLAYPAUSE:
+          paused = !(paused);
+          break;
+          
+        case KEY_VOLUP:
+          brightness++;
+          if (brightness > BRIGHTNESS_MAX) brightness = BRIGHTNESS_MAX;
+          strip.setBrightness(brightness);
+          n = 0; // re-render
+          break;
+
+        case KEY_VOLDOWN:
+          brightness--;
+          if (brightness < 0) brightness = 0;
+          strip.setBrightness(brightness);
+          n = 0; // re-render
           break;
       }
 
@@ -200,7 +237,6 @@ void loop() {
       {
         switchMode(n);
       }
-
     }
     irrecv.resume(); // Receive the next value
   }
@@ -292,24 +328,36 @@ void switchMode(int steprate)
   {
     mode = 1;
   }
-  else if (mode < 0)
+  else if (steprate && mode <= 0) // if steprate = 0, also allow mode = 0
   {
     mode = MODE_MAX-1;
   }
-  Serial.println("switchMode to ");
+  Serial.print("switchMode to ");
   Serial.print(mode, DEC);
   Serial.println("");
   
 
 }
 
+bool cycle()
+{
+  if (paused)
+  {
+    return false;
+  }
+  
+  if (millis() - lastTime >= cycleMillis)
+  {
+    lastTime = millis();
+    return true;
+  }
+  return false;
+}
 
 void runningDotUp()
 {
-  if (millis() - lastTime >= dotRunMillis)
+  if (cycle())
   {
-    lastTime = millis();
-
     drawDot();
  
     if (peak>=LAST_PIXEL_OFFSET)
@@ -325,10 +373,8 @@ void runningDotUp()
 
 void runningDotDown()
 {
-  if (millis() - lastTime >= dotRunMillis)
+  if (cycle())
   {
-    lastTime = millis();
-
     drawDot();
  
     if (peak <= 0)
@@ -386,10 +432,8 @@ void drawDot()
 // Fill the dots one after the other with a color
 void colorWipe(uint8_t r, uint8_t g, uint8_t b)
 {
-  if (millis() - lastTime >= dotRunMillis)
+  if (cycle())
   {
-    lastTime = millis();
-
     strip.setPixelColor(peak, r, g, b);
 
     if (peak <= LAST_PIXEL_OFFSET)
@@ -404,10 +448,8 @@ void rainbow()
 {
   uint16_t i;
 
-  if (millis() - lastTime >= dotRunMillis)
+  if (cycle())
   {
-    lastTime = millis();
-
     if (lvl >= 256)
     {
       lvl = 0;
@@ -429,10 +471,8 @@ void rainbow()
 void rainbowCycle() {
   uint16_t i;
 
-  if (millis() - lastTime >= dotRunMillis)
+  if (cycle())
   {
-    lastTime = millis();
-
     if (lvl >= 5*256) // 5 cycles of all colors on wheel
     {
       lvl = 0;
