@@ -1,3 +1,4 @@
+
 /*
  atmega32u4strip
  
@@ -20,8 +21,11 @@
 
 #include <IRremote.h>
 #include <Adafruit_NeoPixel.h>
-
-
+#include "campfire.h"
+#include "chasers.h"
+#include "flares.h"
+#include "water_torture.h"
+//#include "color_cycle.h"
 
 
 /*
@@ -96,6 +100,30 @@ decode_results results;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_PIXELS, STRIP_PIN, NEO_GRB + NEO_KHZ800);
 
 
+Campfire campfire = Campfire(&strip);
+Chasers chasers = Chasers(&strip);
+Flares flares = Flares(&strip);
+WaterTorture water_torture = WaterTorture(&strip);
+
+/*
+rgb color_cycle_sequence[] = {
+  rgb( 0, 10, 20),
+  rgb( 0, 20, 40),
+  rgb( 0, 30, 60),
+  rgb( 10, 30, 40),
+  rgb( 20, 40, 50),
+  rgb( 30, 50, 40),
+  rgb( 40, 50, 40),
+  rgb( 50, 50, 40),
+  rgb( 60, 50, 40),
+  rgb( 100, 50, 40),
+  rgb( 100, 40, 30),
+  rgb( 100, 30, 20),
+  rgb( 100, 20, 10),
+  rgb( 100, 0,0)
+};
+*/
+
 // Microphone settings and variables
 
 #define MIC_PIN    0  // Microphone is attached to this analog pin (ADC0/F0)
@@ -121,6 +149,16 @@ int
 enum 
 {
   MODE_OFF,
+  
+  MODE_PLAIN_RED,
+  MODE_PLAIN_GREEN,
+  MODE_PLAIN_BLUE,
+  MODE_PLAIN_YELLOW,
+  MODE_PLAIN_CYAN,
+  MODE_PLAIN_MAGENTA,
+  MODE_PLAIN_WHITE,
+  MODE_PLAIN_CYCLE,
+  
   MODE_WIPE_RED,
   MODE_WIPE_GREEN,
   MODE_WIPE_BLUE,
@@ -131,15 +169,24 @@ enum
   MODE_RAINBOW,
   MODE_RAINBOW_CYCLE,
   MODE_VUMETER,
+  MODE_VOICE_LIGHT,
   MODE_DOT_UP,
   MODE_DOT_DOWN,
   MODE_DOT_ZIGZAG,
   MODE_COLOR_STRIPS,
+
+  MODE_CAMPFIRE,
+  MODE_FLARES,
+  MODE_CHASERS,
+  MODE_WATER_TORTURE,
+//  MODE_COLOR_CYCLE,
+
   MODE_MAX
 } MODE;
 
+#define MODE_BORING_MAX MODE_WIPE_RED
 
-int mode = MODE_WIPE_RED;
+int mode = 1; // MODE_WIPE_RED;
 int powerSaveMode = MODE_WIPE_RED;
 bool reverse = false;
 
@@ -152,7 +199,7 @@ int CYCLE_MAX_MILLIS = 1000;
 int cycleMillis = 20;
 bool paused = false;
 long lastTime = 0;
-
+bool boring = true;
 
 void setup()
 {
@@ -194,6 +241,10 @@ void loop()
             mode = powerSaveMode; // restore saved mode
           }
         break;
+          
+        case KEY_ZOOM:
+          boring = false; // enter interesting modes
+          break;
           
         case KEY_RIGHT:
           n = 1;
@@ -267,9 +318,54 @@ void loop()
       off();
       break;
 
+    case MODE_CAMPFIRE:
+      if (cycle())
+        {
+        campfire.animate();
+        show();
+        }
+      break;
+      
+    case MODE_CHASERS:
+      if (cycle())
+        {
+        chasers.animate();
+        show();
+        }
+      break;
+      
+    case MODE_FLARES:
+      if (cycle())
+        {
+        strip.setBrightness(120); // off limits
+        flares.animate();
+        show();
+        strip.setBrightness(brightness); // back to limited
+        }
+      break;
+      
+    case MODE_WATER_TORTURE:
+      if (cycle())
+        {
+        strip.setBrightness(120); // off limits
+        water_torture.animate(reverse);
+        show();
+        strip.setBrightness(brightness); // back to limited
+        }
+      break;
+      
+//    case MODE_COLOR_CYCLE:
+//      if (cycle()) color_cycle.animate();
+//      break;
+      
     case MODE_VUMETER:
       vumeter();
       break;
+
+    case MODE_VOICE_LIGHT:
+      voiceLight();
+      break;
+
 
     case MODE_DOT_UP:
       runningDotUp();
@@ -291,6 +387,38 @@ void loop()
       rainbowCycle();
       break;
 
+    case MODE_PLAIN_RED:
+      plain(255,0,0);
+      break;
+      
+    case MODE_PLAIN_GREEN:
+      plain(0,255,0);
+      break;
+      
+    case MODE_PLAIN_BLUE:
+      plain(0,0,255);
+      break;
+      
+    case MODE_PLAIN_YELLOW:
+      plain(255,255,0);
+      break;
+      
+    case MODE_PLAIN_CYAN:
+      plain(0,255,255);
+      break;
+      
+    case MODE_PLAIN_MAGENTA:
+      plain(255,0,255);
+      break;
+      
+    case MODE_PLAIN_WHITE:
+      plain(255,255,255);
+      break;
+      
+    case MODE_PLAIN_CYCLE:
+      plainCycle();
+      break;
+      
     case MODE_WIPE_RED:
       colorWipe(255, 0, 0);
       break;
@@ -351,13 +479,18 @@ void switchMode(int steprate)
   peak = 0;
   lvl = 10;
   mode += steprate;
-  if (mode >= MODE_MAX)
+  int modeMax = MODE_MAX;
+  if (boring)
+  {
+    modeMax = MODE_BORING_MAX;
+  }
+  if (mode >= modeMax)
   {
     mode = 1;
   }
   else if (steprate && mode <= 0) // if steprate = 0, also allow mode = 0
   {
-    mode = MODE_MAX-1;
+    mode = modeMax-1;
   }
   Serial.print("switchMode to ");
   Serial.print(mode, DEC);
@@ -474,6 +607,43 @@ void colorWipe(uint8_t r, uint8_t g, uint8_t b)
       show();
       peak++;
     }
+  }
+}
+
+// Fill the dots one after the other with a color
+void plain(uint8_t r, uint8_t g, uint8_t b)
+{
+  if (peak <= LAST_PIXEL_OFFSET)
+  {
+    for(int i=0; i<strip.numPixels(); i++)
+    {
+      strip.setPixelColor(i, r, g, b);
+    }
+    show();
+    peak = N_PIXELS;
+  }
+}
+
+void plainCycle()
+{
+  uint16_t i;
+
+  if (cycle())
+  {
+    if (lvl >= 256)
+    {
+      lvl = 0;
+    }
+    else
+    {
+      lvl++;
+    }
+    
+    for(i=0; i<strip.numPixels(); i++)
+    {
+      strip.setPixelColor(i, Wheel(lvl & 255));
+    }
+    show();
   }
 }
 
@@ -682,6 +852,62 @@ void vumeter()
   maxLvlAvg = (maxLvlAvg * 63 + maxLvl) >> 6; // (fake rolling average)
 }
 
+
+void voiceLight()
+{
+  uint8_t  i;
+  uint16_t minLvl, maxLvl;
+  int      n, height;
+
+  n   = analogRead(MIC_PIN);                        // Raw reading from mic 
+  n   = abs(n - 512 - DC_OFFSET); // Center on zero
+  n   = (n <= NOISE) ? 0 : (n - NOISE);             // Remove noise/hum
+  lvl = ((lvl * 7) + n) >> 3;    // "Dampened" reading (else looks twitchy)
+
+  // Calculate bar height based on dynamic min/max levels (fixed point):
+  height = TOP * (lvl - minLvlAvg) / (long)(maxLvlAvg - minLvlAvg);
+
+  if(height < 0L)       height = 0;      // Clip output
+  else if(height > TOP) height = TOP;
+  if(height > peak)     peak   = height; // Keep 'peak' dot at top
+
+  int light = 255 * (lvl - minLvlAvg) / (long)(maxLvlAvg - minLvlAvg);
+  if(light < 0L)       light = 0;      // Clip output
+  else if(light > 255) light = 255;
+
+  // Color pixels based on rainbow gradient
+  for(i=0; i<N_PIXELS; i++)
+  {
+      strip.setPixelColor(i,  light,  light, light);
+  }
+  
+  // Every few frames, make the peak pixel drop by 1:
+
+  if (cycle())
+  {
+    show(); // Update strip
+    }
+
+  vol[volCount] = n;                      // Save sample for dynamic leveling
+  if(++volCount >= SAMPLES) volCount = 0; // Advance/rollover sample counter
+
+  // Get volume range of prior frames
+  minLvl = maxLvl = vol[0];
+  for(i=1; i<SAMPLES; i++)
+  {
+    if(vol[i] < minLvl)      minLvl = vol[i];
+    else if(vol[i] > maxLvl) maxLvl = vol[i];
+  }
+  // minLvl and maxLvl indicate the volume range over prior frames, used
+  // for vertically scaling the output graph (so it looks interesting
+  // regardless of volume level).  If they're too close together though
+  // (e.g. at very low volume levels) the graph becomes super coarse
+  // and 'jumpy'...so keep some minimum distance between them (this
+  // also lets the graph go to zero when no sound is playing):
+  if((maxLvl - minLvl) < TOP) maxLvl = minLvl + TOP;
+  minLvlAvg = (minLvlAvg * 63 + minLvl) >> 6; // Dampen min/max levels
+  maxLvlAvg = (maxLvlAvg * 63 + maxLvl) >> 6; // (fake rolling average)
+}
 
 
 // Input a value 0 to 255 to get a color value.
