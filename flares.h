@@ -130,9 +130,10 @@ void animate()
 
   for (uint8_t i = 0; i < strip->numPixels(); i++)
   {
-    strip->setPixelColor(i, leds->red, leds->green, leds->blue); // overwrite with brightness
+    strip->setPixelColor(0, leds->red, leds->green, leds->blue); // overwrite with brightness
     leds++;
   }
+  strip->show();
 }
 
 private:
