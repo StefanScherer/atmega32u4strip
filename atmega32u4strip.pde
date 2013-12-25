@@ -242,8 +242,13 @@ void loop()
           }
         break;
           
-        case KEY_ZOOM:
+        case KEY_FAVORITES:
           boring = false; // enter interesting modes
+          break;
+
+        case KEY_SLEEP:
+          mode = MODE_PLAIN_RED;
+          boring = true;
           break;
           
         case KEY_RIGHT:
@@ -308,6 +313,10 @@ void loop()
       if (n != -120)
       {
         switchMode(n);
+        if (mode == MODE_FLARES)
+        {
+          off();
+        }
       }
     }
     irrecv.resume(); // Receive the next value

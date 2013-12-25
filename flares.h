@@ -118,7 +118,7 @@ void animate()
           create_random_flare( flares[current_flare], strip->numPixels());
           ++current_flare;
           if (current_flare >= flare_count) current_flare = 0;
-          flare_pause = rand() % 80;
+          flare_pause = rand() % 40;
         }
       }
 
@@ -133,12 +133,11 @@ void animate()
     strip->setPixelColor(0, leds->red, leds->green, leds->blue); // overwrite with brightness
     leds++;
   }
-  strip->show();
 }
 
 private:
   Adafruit_NeoPixel *strip;
-    static const uint8_t flare_count = 16;
+    static const uint8_t flare_count = 40;
     flare flares[flare_count];
     uint8_t current_flare;
     uint8_t flare_pause;
