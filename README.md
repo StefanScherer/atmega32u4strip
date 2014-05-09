@@ -23,6 +23,11 @@ For Windows, download the [INF file](http://www.adafruit.com/datasheets/atmega32
 
 Clone project into C:\Users\username\Documents\Arduino and open the sketchbook **atmega32u4strip**.
 
+## Documentation
+
+See the [wiki page](wiki/LED-strip-controlled-by-Atmega32u4-breakout-board).
+
+[[LED strip controlled by Atmega32u4 breakout board]]
 
 
 
