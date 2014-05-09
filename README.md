@@ -25,7 +25,6 @@ Clone project into C:\Users\username\Documents\Arduino and open the sketchbook *
 
 ## Documentation
 
-See the [wiki page](https://github.com/StefanScherer/atmega32u4strip/wiki/LED-strip-controlled-by-Atmega32u4-breakout-board)
-
+See the [wiki page](../../wiki/LED-strip-controlled-by-Atmega32u4-breakout-board) for pictures and details.
 
 
